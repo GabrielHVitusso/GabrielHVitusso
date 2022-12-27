@@ -11,6 +11,7 @@ int _Pontos;
 //Metodos
 public:
 
+NPC(string nome);
 NPC();
 ~NPC();
 void setNome(string nome);
@@ -19,6 +20,6 @@ void setCor(string cor);
 string getCor();
 void setPontos(int pontos);
 int getPontos();
-string print();
+void print();
 
 };
