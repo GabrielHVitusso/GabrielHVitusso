@@ -8,6 +8,10 @@ import numpy as np
 from mip import Model, xsum, maximize, CBC, OptimizationStatus, BINARY
 from time import time
 
+# Tipos de Problemas Considerados:
+## Caixeiro Viajante
+## Mochila
+
 # Heuristicas Construtivas, aquelas utilizadas para se encontrar uma solução inicial
 
 ## Construção Gulosa : Usada em heurísticas clássicas, estima o benefício de cada elemento e coloca somente o elemento "melhor" a cada passo
@@ -28,6 +32,7 @@ class CConstrucao():
         sol._b = np.sum(inst.w[ind]) # Peso final usado
         sol.get_obj_val()
 ### A grande vantagem dessa heuristica se baseia na simplicidade de implementaca, entretanto, as solucoes obtidas sao de baixa qualidade
+### É interessante de se observar que a construção desse algoritmo é feita específicamente para o problema da mochila
 
 ## Construcao Aleatoria :Definicao aleatoria de uma solucao
 
@@ -45,4 +50,16 @@ class CConstrucao():
                 h += 1
         sol.get_obj_val()
 ### Essa construcao e com certeza uma da mais rapidas, entretando, nao da para garantir algum tipo de qualidade
+### É interessante de se observar que a construção desse algoritmo é feita específicamente para o problema da mochila
 
+## Heuristica do vizinho mais proximo
+## Heuristica Bellmore e Nemhauser
+## Heuristica da Insercao Mais Barata
+
+# Heuristicas de Refinamento
+
+## Método da Descida/Subida
+## Método da Primeira Melhora
+## Método de Descida/Subida Randomica
+## Descida em Vizinhança Varialvel
+## Busca Local
