@@ -11,17 +11,72 @@ import sys
 def main():
     assert len(sys.argv) > 4, 'please, provide <matricula> <ni> <nj> <p>'
     matricula,ni,nj,p = [int(val) for val in sys.argv[1:]]
-    dt = CData(matricula,ni,nj,p)
-    print(dt.ni,dt.nj,dt.p,dt.c)
-    mod = CModel(dt)
-    mod.run()
-    print("--------------------------------------------------\n")
-    Aleatoria = CSolution().Aleatoria(dt)
+    #dt = CData(matricula,ni,nj,p)
+    #print(dt.ni,dt.nj,dt.p,dt.c)
+    #mod = CModel(dt)
+    #mod.run()
+    print("2022056, 100, 50, 5")
+    Resolucao(2022056, 100, 50, 5)
+    print("2022056, 200, 50, 5")
+    Resolucao(2022056, 200, 50, 5)
+    print("2022056, 300, 100, 7")
+    Resolucao(2022056, 300, 100, 7)
+    print("2022056, 400, 100, 7")
+    Resolucao(2022056, 400, 100, 7)
     
-    print("--------------------------------------------------\n")
-    Gulosa = CSolution().Gulosa(dt)
+    print("2022056, 500, 100, 5")
+    Resolucao(2022056, 500, 100, 5)
+    print("2022056, 500, 100, 7")
+    Resolucao(2022056, 500, 100, 7)
+    print("2022056, 500, 100, 10")
+    Resolucao(2022056, 500, 100, 10)
     
+    print("2022056, 600, 100, 5")
+    Resolucao(2022056, 500, 100, 5)
+    print("2022056, 600, 100, 7")
+    Resolucao(2022056, 600, 100, 7)
+    print("2022056, 600, 100, 10")
+    Resolucao(2022056, 500, 100, 5)
+    #print("--------------------------------------------------\n")
+    #Aleatoria = CSolution().Aleatoria(dt)
+    
+    #print("--------------------------------------------------\n")
+    #Gulosa = CSolution().Gulosa(dt)
  
+   # print("--------------------------------------------------\n")
+
+    #Local = CLocal_Search().Primeira_Melhora(Gulosa)
+
+    
+    #print("--------------------------------------------------\n")
+    
+def Resolucao(matricula,ni,nj,p):
+    print("--------------------------------------------------\n")
+    
+    # Cria-se um CData
+    crono = Crono()
+    dt_1 = CData(matricula, ni, nj, p)
+    print("--------------------------------------------------\n")
+    # Faz a Solucao Otima
+    mod1 = CModel(dt_1)
+    mod1.run()
+    print("--------------------------------------------------\n")
+    # Faz a solucao gulosa
+    Gulosa_1 = CSolution().Gulosa(dt_1)
+    print("--------------------------------------------------\n")
+    # Faz a busca local
+    Local_1 = CLocal_Search().Primeira_Melhora(Gulosa_1)
+    print("--------------------------------------------------\n")
+    # Faz o GAP
+    
+    GAP = 100*(mod1.model.objective_value - Local_1.total)/mod1.model.objective_value
+    print("GAP: ", GAP)
+    
+    print("--------------------------------------------------\n")
+    # Retorna o tempo de execucao
+    
+    crono.stop()
+    print("Tempo execucao           : {:12.4f} s.".format(crono.elapsed))
  
 class CData:
    def __init__(self,matricula,ni,nj,p):
@@ -104,6 +159,7 @@ class CModel():
 class CSolution():
     
     def Aleatoria(self, dt):
+        # Importa valores
         self.dt = dt
         self.ni, self.nj = dt.ni, dt.nj
         self.p = dt.p
@@ -111,23 +167,26 @@ class CSolution():
         self.xyi = dt.xyi
         self.xyj = dt.xyj
         self.c = dt.c
+        
+        # Conta o tempo
         crono = Crono()
 
-        # Inicializa as variáveis de decisão
-        self.y = np.zeros(self.nj, dtype=int)  # Facilidades instaladas
-        self.x = np.zeros((self.ni, self.nj))  # Proporção da demanda atendida
+        # Cria vetor y e matriz x
+        self.y = np.zeros(self.nj, dtype=int)  # Y[nj]
+        self.x = np.zeros((self.ni, self.nj))  # X[ni,nj]
 
-        # Seleciona aleatoriamente `p` facilidades para serem instaladas
-        selected_facilities = np.random.choice(self.nj, self.p, replace=False)
-        self.y[selected_facilities] = 1
+        # Escolhe facilidades aleatorias para instalar
+        location = np.random.choice(self.nj, self.p, replace=False)
+        self.y[location] = 1
 
         # Distribui a demanda dos clientes aleatoriamente entre as facilidades instaladas
         for i in range(self.ni):
-            # Facilidades disponíveis para atender o cliente `i`
-            available_facilities = selected_facilities
-            # Gera proporções aleatórias para distribuir a demanda
-            proportions = np.random.dirichlet(np.ones(len(available_facilities)))
-            for idx, j in enumerate(available_facilities):
+            
+            disponivel = location
+            # Gera aleatoriamente valores que, quando somados, resultam em 1
+            proportions = np.random.dirichlet(np.ones(len(disponivel)))
+            # Salva esses valores na coordenada correspondente
+            for idx, j in enumerate(disponivel):
                 self.x[i, j] = proportions[idx]
 
         crono.stop()    
@@ -136,6 +195,7 @@ class CSolution():
         return self
     
     def Gulosa(self, dt):
+        # Importa valores
         self.dt = dt
         self.ni, self.nj = dt.ni, dt.nj
         self.p = dt.p
@@ -143,33 +203,31 @@ class CSolution():
         self.xyi = dt.xyi
         self.xyj = dt.xyj
         self.c = dt.c
+        
+        # Conta o tempo
         crono = Crono()
 
-        # Inicializa as variáveis de decisão
-        self.y = np.zeros(self.nj, dtype=int)  # Facilidades instaladas
-        self.x = np.zeros((self.ni, self.nj))  # Proporção da demanda atendida
+        # Cria vetor y e matriz x
+        self.y = np.zeros(self.nj, dtype=int)  # Y[nj]
+        self.x = np.zeros((self.ni, self.nj))  # X[ni,nj]
 
-        # Lista de facilidades e clientes
-        facilities = list(range(self.nj))
-        clients = list(range(self.ni))
+        # Lista de locais e clientes
+        location = list(range(self.nj))
+        clientes = list(range(self.ni))
 
         # Ordena as facilidades pelo custo total de atender todos os clientes
-        facility_costs = [
-            sum(self.c[i, j] * self.d[i] for i in clients) for j in facilities
-        ]
-        sorted_facilities = sorted(facilities, key=lambda j: facility_costs[j])
+        custos_em_ordem = [sum(self.c[i, j] * self.d[i] for i in clientes) for j in location]
+        locais_ordenados = sorted(location, key=lambda j: custos_em_ordem[j])
 
-        # Seleciona as `p` facilidades com menor custo
-        selected_facilities = sorted_facilities[:self.p]
-        self.y[selected_facilities] = 1
+        # Escolhe os locais com menor custo, tal que nao ultrapassem p
+        locais_escolhidos = locais_ordenados[:self.p]
+        self.y[locais_escolhidos] = 1
 
-        # Distribui a demanda dos clientes para as facilidades selecionadas
-        for i in clients:
-            # Escolhe a facilidade com menor custo para atender o cliente `i`
-            best_facility = min(
-                selected_facilities, key=lambda j: self.c[i, j]
-            )
-            self.x[i, best_facility] = 1  # Toda a demanda do cliente `i` vai para a melhor facilidade
+        # Escolhe de onde atender cada cliente
+        for i in clientes:
+            # Escolhe o local com menor custo para atender o cliente i
+            menor_custo = min(locais_escolhidos, key=lambda j: self.c[i, j])
+            self.x[i, menor_custo] = 1  # Toda a demanda do cliente `i` vai para a melhor facilidade
         
         crono.stop()    
         self.print_solution(crono)
@@ -196,99 +254,108 @@ class CSolution():
                     if self.x[i, j] > 1e-6:  # Verifica se o cliente está sendo atendido pela facilidade
                         print(" {:d}".format(i + 1), end='')
                 print()
+                
+class CLocal_Search():
     
-    """def Primeira_Melhoria(self, dt, sol):
-        
-        #Algoritmo de Primeira Melhoria para refinar a solução inicial.
-        #:param dt: Dados do problema (CData)
-        #:param sol: Solução inicial (CSolution)
-        #:return: Solução refinada
-        
-        self.dt = dt
-        self.ni, self.nj = dt.ni, dt.nj
-        self.p = dt.p
-        self.d = dt.d
-        self.c = dt.c
-
-        # Copia a solução inicial
+    def Primeira_Melhora(self, sol):
+        #Importar a solucao
+        self.dt = sol.dt
+        self.ni, self.nj = sol.ni, sol.nj
+        self.p = sol.p
+        self.d = sol.d
+        self.xyi = sol.xyi
+        self.xyj = sol.xyj
+        self.c = sol.c
         self.y = sol.y.copy()
         self.x = sol.x.copy()
-
-        # Calcula o custo inicial
-        current_cost = sum(
-            self.x[i, j] * self.d[i] * self.c[i, j]
-            for i in range(self.ni)
-            for j in range(self.nj)
-        )
-
-        # Itera sobre a vizinhança
-        for j in range(self.nj):
-            if self.y[j] == 1:  # Facilidades instaladas
-                for k in range(self.nj):
-                    if self.y[k] == 0:  # Facilidades não instaladas
-                        # Troca a instalação de `j` por `k`
-                        new_y = self.y.copy()
-                        new_y[j] = 0
-                        new_y[k] = 1
-
-                        # Recalcula a alocação de clientes
-                        new_x = np.zeros((self.ni, self.nj))
-                        for i in range(self.ni):
-                            # Seleciona a facilidade instalada com menor custo para o cliente `i`
-                            installed_facilities = [f for f in range(self.nj) if new_y[f] == 1]
-                            best_facility = min(installed_facilities, key=lambda f: self.c[i, f])
-                            new_x[i, best_facility] = 1
-
-                        # Calcula o custo da nova solução
-                        new_cost = sum(
-                            new_x[i, j] * self.d[i] * self.c[i, j]
-                            for i in range(self.ni)
-                            for j in range(self.nj)
-                        )
-
-                        # Verifica se a nova solução é melhor
-                        if new_cost < current_cost:
-                            print(f"Melhoria encontrada: Custo {current_cost:.2f} -> {new_cost:.2f}")
-                            self.y = new_y
-                            self.x = new_x
-                            return self  # Retorna a nova solução no mesmo formato
-
-        # Retorna a solução original se nenhuma melhoria for encontrada
-        print("Nenhuma melhoria encontrada.")
+        
+        # Conta o tempo
+        crono = Crono()
+    
+        #Custo total inicial
+        total_inicial = 0
+        for i in range(self.ni):
+            for j in range(self.nj):
+                total_inicial += self.x[i,j] * self.d[i] * self.c[i,j]
+                
+        # Salva o valor de custo total na solucao
+        self.total = total_inicial
+        
+        auxiliar = 1000000000000000000000 # valor muito grande (BIG M)
+        
+        while auxiliar>= total_inicial: # Enquanto o resultado nao melhora
+            
+            resultado = self.movimento() # Faz um movimento
+            
+            if resultado.total < total_inicial: # Checa se ele melhora
+                self.total = resultado.total  # Atualiza o custo total atual
+                self.x = resultado.x.copy()  # Atualiza a solução
+                self.y = resultado.y.copy()  # Atualiza as facilidades instaladas
+                print(f"Iteração {i}: Melhoria encontrada. Novo custo: {self.total:.2f}")
+                print(" Melhoria encontrada: Custo {0:.2f} -> {1:.2f}".format(total_inicial, resultado.total))
+                break
+            
+            auxiliar = resultado.total
+        
+        crono.stop()
+        print("Tempo execucao           : {:12.4f} s.".format(crono.elapsed))
         return self
 
-    def calculate_total_cost(self, x, y, d, c):
-        
-        #Calcula o custo total da solução.
-        #:param x: Matriz de alocação de clientes
-        #:param y: Vetor de facilidades instaladas
-        #:param d: Demanda dos clientes
-        #:param c: Custos de transporte
-        #:return: Custo total
-        
-        total_cost = 0
-        for i in range(len(d)):
-            for j in range(len(y)):
-                total_cost += x[i, j] * d[i] * c[i, j]
-        return total_cost
+    def movimento(self):
+        # Encontra os índices onde y é 1 e onde y é 0
+        indices_1 = np.where(self.y == 1)[0]
+        indices_0 = np.where(self.y == 0)[0]
 
-    def reallocate_clients(self, ni, nj, y, d, c):
+        # Verifica se há pelo menos um índice em cada grupo
+        if len(indices_1) == 0 or len(indices_0) == 0:
+            print("Não há bits suficientes para realizar a troca.")
+            return self
+
+        # Seleciona aleatoriamente um índice de cada grupo
+        idx_1 = np.random.choice(indices_1)
+        idx_0 = np.random.choice(indices_0)
+
+        # Realiza a troca
+        self.y[idx_1], self.y[idx_0] = self.y[idx_0], self.y[idx_1]
+
+        # Atualiza x para garantir que apenas colunas com y = 1 tenham valores diferentes de 0
+        self.x[:, :] = 0  # deixa o x todo em 0
+        locais = np.where(self.y == 1)[0]
+
+        # Escolhe o melhor local para cada cliente i
+        for i in range(self.ni):
+            
+            custo_aux = 1000000000000000000000 # valor muito grande (BIG M)
+            melhor = -1
+            
+            for j in locais:
+                if custo_aux > self.c[i, j]:
+                    custo_aux = self.c[i, j]
+                    melhor = j # Seleciona apenas um local com custo melhor do que o atual
+            self.x[i, melhor] = 1 # Aqui ficou o melhor custo valido para locais existentes
+
+        # Calcula o novo custo total
+        new_total = 0
+        for i in range(self.ni):
+            for j in range(self.nj):
+                new_total += self.x[i, j] * self.d[i] * self.c[i, j]
+
+        # Devolve a nova solução melhorada ou nao
+        result = CLocal_Search()
+        result.dt = self.dt
+        result.ni, result.nj = self.ni, self.nj
+        result.p = self.p
+        result.d = self.d
+        result.xyi = self.xyi
+        result.xyj = self.xyj
+        result.c = self.c
+        result.y = self.y.copy()
+        result.x = self.x.copy()
+        result.total = new_total
+
+        return result
+
         
-        #Realoca os clientes para as facilidades instaladas.
-        #:param ni: Número de clientes
-        #:param nj: Número de facilidades
-        #:param y: Vetor de facilidades instaladas
-        #:param d: Demanda dos clientes
-        #:param c: Custos de transporte
-        ##:return: Nova matriz de alocação de clientes
-        
-        x = np.zeros((ni, nj))
-        for i in range(ni):
-            # Seleciona a facilidade instalada com menor custo para o cliente `i`
-            installed_facilities = [j for j in range(nj) if y[j] == 1]
-            best_facility = min(installed_facilities, key=lambda j: c[i, j])
-            x[i, best_facility] = 1  # Toda a demanda do cliente `i` vai para a melhor facilidade
-        return x"""
 
 if __name__ == '__main__':
    main()
