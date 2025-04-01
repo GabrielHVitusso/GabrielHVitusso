@@ -352,7 +352,7 @@ class CLocal_Search():
         result.y = self.y.copy()
         result.x = self.x.copy()
         result.total = new_total
-
+        # Esse movimento engloba de forma estruturada a criacao de duas vizinhancas, uma em X e outra em Y
         return result
 
         
