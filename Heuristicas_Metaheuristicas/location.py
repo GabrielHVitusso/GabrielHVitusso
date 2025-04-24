@@ -9,12 +9,27 @@ import scipy
 import sys
 
 def main():
+    # RESOLUCAO PADRAO
     assert len(sys.argv) > 4, 'please, provide <matricula> <ni> <nj> <p>'
     matricula,ni,nj,p = [int(val) for val in sys.argv[1:]]
-    #dt = CData(matricula,ni,nj,p)
-    #print(dt.ni,dt.nj,dt.p,dt.c)
-    #mod = CModel(dt)
+    dt = CData(matricula,ni,nj,p)
+    print(dt.ni,dt.nj,dt.p,dt.c)
+    mod = CModel(dt)
     #mod.run()
+    #print("--------------------------------------------------\n")
+    #Aleatoria = CSolution().Aleatoria(dt)
+    
+    #print("--------------------------------------------------\n")
+    #Gulosa = CSolution().Gulosa(dt)
+ 
+    #print("--------------------------------------------------\n")
+
+    #Local = CLocal_Search().Primeira_Melhora(Gulosa)
+
+    
+    #print("--------------------------------------------------\n")
+    
+    #QUADRO DE RESULTADOS
     print("2022056242, 100, 50, 5")
     Resolucao(2022056242, 100, 50, 5)
     print("2022056242, 200, 50, 5")
@@ -37,20 +52,7 @@ def main():
     Resolucao(2022056242, 600, 100, 7)
     print("2022056242, 600, 100, 10")
     Resolucao(2022056242, 600, 100, 10)
-    #print("--------------------------------------------------\n")
-    #Aleatoria = CSolution().Aleatoria(dt)
-    
-    #print("--------------------------------------------------\n")
-    #Gulosa = CSolution().Gulosa(dt)
- 
-   # print("--------------------------------------------------\n")
-
-    #Local = CLocal_Search().Primeira_Melhora(Gulosa)
-
-    
-    #print("--------------------------------------------------\n")
-    
-def Resolucao(matricula,ni,nj,p):
+def Resolucao(matricula,ni,nj,p): # Matriz de resolucao e aplicacao dos algoritmos para replicabilidade
     print("--------------------------------------------------\n")
     
     # Cria-se um CData
@@ -286,7 +288,7 @@ class CLocal_Search():
         
         while auxiliar>= total_inicial: # Enquanto o resultado nao melhora
             
-            resultado = self.movimento() # Faz um movimento
+            resultado = self.movimento() # Faz um movimento em y
             
             if resultado.total < total_inicial: # Checa se ele melhora
                 self.total = resultado.total  # Atualiza o custo total atual
@@ -355,6 +357,25 @@ class CLocal_Search():
         result.total = new_total
         # Esse movimento engloba de forma estruturada a criacao de duas vizinhancas, uma em X e outra em Y
         return result
+    
+    def movimento_em_x(self):
+        # Encontra os índices onde x é 1 e onde x é 0
+        indices_1 = np.argwhere(self.x == 1)
+        indices_0 = np.argwhere(self.x == 0)
+
+        # Verifica se há pelo menos um índice em cada grupo
+        if len(indices_1) == 0 or len(indices_0) == 0:
+            print("Não há bits suficientes para realizar a troca.")
+            return self
+
+        # Seleciona aleatoriamente um índice de cada grupo
+        idx_1 = indices_1[np.random.choice(len(indices_1))]
+        idx_0 = indices_0[np.random.choice(len(indices_0))]
+
+       # Realiza a troca
+        self.x[idx_1[0], idx_1[1]], self.x[idx_0[0], idx_0[1]] = self.x[idx_0[0], idx_0[1]], self.x[idx_1[0], idx_1[1]]
+
+        return self
 
         
 
