@@ -116,7 +116,7 @@ class CLocalSearch():
             h += 1
             constr.partial_greedy(sol,alpha)
             #ls.swap_one_bit(sol)
-            ls.vnd(sol)#swap_one_bit(sol)
+            ls.vnd(sol, strategy='first')#swap_one_bit(sol)
             if sol.obj > best_sol.obj:
                 best_sol.copy(sol)
                 break
