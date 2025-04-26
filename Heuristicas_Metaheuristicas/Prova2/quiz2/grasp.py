@@ -27,7 +27,16 @@ def main():
     #sol.print()
     
     ls = CLocalSearch()
-    ls.grasp(sol,alpha=0.30,graspmax=50)
+    best_sol = CSolution(inst)
+    best_sol.copy(sol)
+    
+    for i in range(30):
+        ls.grasp(sol,alpha=0.30,graspmax=50)
+        if sol.obj > best_sol.obj:
+            best_sol.copy(sol)
+    
+    print('best solution')
+    best_sol.print()
 
     #print('tabu search')   
     #ls.tabu_search(sol,20)
@@ -103,12 +112,14 @@ class CLocalSearch():
         ls = CLocalSearch()
         h = 0
         while h < graspmax:
+            np.random.shuffle(sol.x)
             h += 1
             constr.partial_greedy(sol,alpha)
             #ls.swap_one_bit(sol)
             ls.vnd(sol)#swap_one_bit(sol)
             if sol.obj > best_sol.obj:
                 best_sol.copy(sol)
+                break
         best_sol.print()
 
     def tabu_search(self,sol,tsmax=20):

@@ -18,6 +18,7 @@ def main():
     constr = CConstructor()
     
     # random
+    print('Random solution 1') 
     constr.random_solution(sol)
     sol.print()
 
@@ -31,9 +32,22 @@ def main():
 
     #ls.ga(inst,population_size=200,max_generation=200,prob_xor=0.90,prob_mutation=0.2)
 
-    print('tabu search')   
-    ls.tabu_search(sol,20)
+    print('tabu search 1')
+    for h in range(30):   
+        ls.tabu_search(sol,20)
     sol.print()
+    
+    print('Random solution 2')
+    constr.random_solution2(sol)
+    sol.print()
+    
+    ls = CLocalSearch()
+    
+    print('tabu search 2')
+    for h in range(30):
+        ls.tabu_search(sol,20)
+    sol.print()
+    
     
     mod = CModel(inst)
     mod.run()
@@ -228,28 +242,33 @@ class CLocalSearch():
                 best_sol.copy(sol)
         best_sol.print()
 
-    def tabu_search(self,sol,tsmax=20):
+    def tabu_search(self, sol, tsmax=20):
         inst = sol.inst
-        p,w,M,n = inst.p,inst.w,inst.M,inst.n
-        b,_b = inst.b,sol._b
+        p, w, M, n = inst.p, inst.w, inst.M, inst.n
+        b, _b = inst.b, sol._b
         N = np.arange(n)
-        tssz = 4#math.ceil(n/3)
+        tssz = 4  # math.ceil(n/3)
         self.tabu_list = np.zeros(n)
 
         best_sol = CSolution(inst)
         best_sol.copy(sol)
-                     
+
         tsiter = 0
         bestiter = 0
         while (tsiter - bestiter < tsmax):
-          tsiter += 1
-          delta,j = self.tabu_search_best_neighbor(sol,best_sol,tsiter)
-          
-          self.tabu_list[j] = tsiter + tssz
-          self.swap_bit(sol,j) 
-          if sol.obj > best_sol.obj:
-              best_sol.copy(sol)
-              bestiter = tsiter
+            tsiter += 1
+            np.random.shuffle(N)  # Shuffle the order of bits randomly
+            for j in N:
+                delta = self.swap_bit(sol, j)
+                if (self.tabu_list[j] < tsiter) or (self.tabu_list[j] >= tsiter and sol.obj > best_sol.obj):
+                    self.tabu_list[j] = tsiter + tssz
+                    if delta > 0:
+                        break  # First improvement found
+                    else:
+                        self.swap_bit(sol, j)  # Revert the change if no improvement
+            if sol.obj > best_sol.obj:
+                best_sol.copy(sol)
+                bestiter = tsiter
         sol.copy(best_sol)
 
     def tabu_search_best_neighbor(self,sol,best_sol,tsiter):
