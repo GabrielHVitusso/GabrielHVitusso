@@ -9,6 +9,7 @@ import math
 from math import exp,log
 from mip import Model, xsum,  maximize, CBC, OptimizationStatus, BINARY
 from time import perf_counter as pc
+import pandas as pd
 
 np.random.seed(10200)
 
@@ -18,22 +19,65 @@ def main():
     #inst.print()
 
     sol = CSolution(inst)
+    
+    # Initialize a DataFrame to store results
+    results = pd.DataFrame(columns=['Seed', 'Multistart', 'ILS', 'GRASP', 'Tabu Search', 'SA', 'VNS'])
+
+    # Loop through seeds from 100 to 3000, iterating by 100
+    for seed in range(100, 3001, 100):
+        np.random.seed(seed)
+        sol.reset()  # Reset the solution for each seed
+
+        # Initialize local search object
+        ls = CLocalSearch()
+
+        # Run each algorithm and store the results
+        print("multistart")
+        ls.multistart(sol)
+        multistart_obj = sol.obj
+
+        print("ils")
+        sol.reset()
+        ls.ils(sol,1,5,5,strategy='first')
+        ils_obj = sol.obj
+
+        print("grasp")
+        sol.reset()
+        ls.grasp(sol, alpha=0.1, graspmax=10)
+        grasp_obj = sol.obj
+
+        print("tabu search")
+        sol.reset()
+        ls.tabu_search(sol, tsmax=500000, max_time=2)
+        tabu_obj = sol.obj
+
+        print("sa")
+        sol.reset()
+        ls.sa(sol,0.95,10)
+        sa_obj = sol.obj
+
+        print("vns")
+        sol.reset()
+        ls.vns(sol, max_time=0.5, strategy='first')
+        vns_obj = sol.obj
+
+        # Append the results to the DataFrame
+        results = pd.concat([results, pd.DataFrame([{
+            'Seed': seed,
+            'Multistart': multistart_obj,
+            'ILS': ils_obj,
+            'GRASP': grasp_obj,
+            'Tabu Search': tabu_obj,
+            'SA': sa_obj,
+            'VNS': vns_obj
+        }])], ignore_index=True)
+
+    # Save the results to a CSV file
+    results.to_csv('results.csv', index=False)
 
     constr = CConstructor()
     
-    constr.random_solution(sol)
-    sol.print()
     
-    ls = CLocalSearch()
-    bsol = CSolution(inst)
-    for i in range(1):
-        ls.vns(sol, 3)
-        if sol.obj > bsol.obj:
-            bsol.copy(sol)
-    bsol.print()
-    
-    mod = CModel(inst)
-    mod.run()
     
 class CModel():
     def __init__(self,inst):
@@ -80,6 +124,24 @@ class CModel():
 class CLocalSearch():
     def __init__(self):
         pass
+ 
+    def multistart(self, sol):
+        inst = sol.inst
+        p, w, M, n = inst.p, inst.w, inst.M, inst.n
+        b, _b = inst.b, sol._b
+        N = np.arange(n)
+        best_sol = CSolution(inst)
+        best_sol.copy(sol)
+        constr = CConstructor()
+        ls = CLocalSearch()
+        for i in range(30):
+            constr.random_solution2(sol)
+            self.vnd(sol, strategy='first')  # Use 'first' improvement strategy
+            #print(sol.obj)
+            if sol.obj > best_sol.obj:
+                best_sol.copy(sol)
+        # best_sol.print()
+    
     def grasp(self, sol, alpha=.10, graspmax=3):
         best_sol = CSolution(sol.inst)
         best_sol.copy(sol)
@@ -87,28 +149,34 @@ class CLocalSearch():
         ls = CLocalSearch()
         h = 0
         while h < graspmax:
-            np.random.shuffle(sol.x)
             h += 1
             constr.partial_greedy(sol,alpha)
             #ls.swap_one_bit(sol)
             ls.vnd(sol)#swap_one_bit(sol)
             if sol.obj > best_sol.obj:
                 best_sol.copy(sol)
-                break
         #best_sol.print()
     
-    def vnd(self,sol):
+    def vnd(self,sol,strategy='best'):
         solstar = CSolution(sol.inst)
         solstar.copy_solution(sol)
 
         h = 1
         while (h <= 2):
-            if h == 1:
-                self.swap_one_bit(sol)
-            elif h == 2:
-                self.swap_two_bits(sol)
+            if strategy == 'best':
+               if h == 1:
+                   self.swap_one_bit_best_improvement(sol)
+               elif h == 2:
+                   self.swap_two_bits_best_improvement(sol)
+               else:
+                    break
             else:
-                break
+               if h == 1:
+                  self.swap_one_bit(sol)
+               elif h == 2:
+                  self.swap_two_bits(sol)
+               else:
+                  break
 
             if sol.obj > solstar.obj:
                solstar.copy_solution(sol)
@@ -190,14 +258,14 @@ class CLocalSearch():
     def ils(self,sol,\
                 max_time,\
                 max_iterations,\
-                max_perturbation = 5
-                ):
+                max_perturbation = 5,
+                strategy='best'):
         crono = Crono()
         solstar = CSolution(sol.inst)
         solstar.copy_solution(sol)
 
         h,gh = 0,0
-        self.vnd(sol)
+        self.vnd(sol, strategy=strategy)
         #self.rvnd(sol)
         pert_level = 1
         while h < max_iterations and crono.get_time() < max_time:
@@ -214,7 +282,7 @@ class CLocalSearch():
  {crono.get_time():10.2f}s')
                  '''
                  self.perturbation(sol,pert_level)
-                 self.vnd(sol)
+                 self.vnd(sol,strategy=strategy)
                  #self.rvnd(sol)
 
                  if sol.obj > solstar.obj:
@@ -287,29 +355,26 @@ class CLocalSearch():
         #print(f'obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
         while temperature > final_temperature:
             h = 0
-            
             while h < SAmax:
                 h += 1
                 j = np.random.randint(n)
-                delta = self.swap_bit(sol, j)
-                np.random.shuffle(N)
-            
+                delta = self.swap_bit(sol,j) 
                 if delta > 0:
-                    # improving solution
-                    # print(f'improving solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
-                    # updating to the first solution
-                    best_sol.copy(sol)
-                    break
+                   #improving solution
+                   #print(f'improving solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
+                   #improving best solutio
+                   if sol.obj > best_sol.obj:
+                       best_sol.copy(sol)
                 else:
-                    rnd = np.random.uniform(0, 1)
-                if rnd < exp(delta / temperature):
-                    # print(f'worsening solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
-                    pass
-                else:
-                    self.swap_bit(sol, j)
+                   rnd = np.random.uniform(0,1)
+                   if rnd < exp(delta/temperature):
+                      #print(f'worsening solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
+                      pass
+                   else:
+                      self.swap_bit(sol,j)
             # diminish temperature
             temperature *= alpha
-            # print(f'current temperature:   {temperature:10.2f}')
+            #print(f'current temperature:   {temperature:10.2f}')
             n_temp_changes += 1
         #print(f'final temperature               :{temperature:18.2f}')
         #print(f'max number of checked solutions :{n_temp_changes*SAmax:18.0f}') 
@@ -345,37 +410,62 @@ class CLocalSearch():
         #print(f'initial temperature:   {temperature:10.2f}')
         return temperature
 
-    def tabu_search(self, sol, tsmax=20):
-
-    
+    def tabu_search(self,sol,tsmax=500000,max_time=3, tssz=4):
         inst = sol.inst
-        p, w, M, n = inst.p, inst.w, inst.M, inst.n
-        b, _b = inst.b, sol._b
-        N = np.arange(n)
-        tssz = 4  # math.ceil(n/3)
-        self.tabu_list = np.zeros(n)
+        self.tabu_list = np.zeros(inst.n)
+        
 
         best_sol = CSolution(inst)
         best_sol.copy(sol)
-
+                     
+        timer = Crono()
+        
         tsiter = 0
-        bestiter = 0
-        while (tsiter - bestiter < tsmax):
+        while tsiter < tsmax and timer.get_time() < max_time:
             tsiter += 1
-            np.random.shuffle(N)  # Shuffle the order of bits randomly
-            for j in N:
-                delta = self.swap_bit(sol, j)
-                if (self.tabu_list[j] < tsiter) or (self.tabu_list[j] >= tsiter and sol.obj > best_sol.obj):
-                    self.tabu_list[j] = tsiter + tssz
-                    if delta > 0:
-                        break  # First improvement found
-                    else:
-                        self.swap_bit(sol, j)  # Revert the change if no improvement
+            delta,j = self.tabu_search_first(sol,best_sol,tsiter)
+          
+            if j == -1:
+                continue
+        
+            self.tabu_list[j] = tsiter + tssz
+        
             if sol.obj > best_sol.obj:
                 best_sol.copy(sol)
-                bestiter = tsiter
-        sol.copy(best_sol)
+        
+        sol.copy_solution(best_sol)
 
+    def tabu_search_best_neighbor(self,sol,best_sol,tsiter):
+        inst = sol.inst
+        p,w,M,n = inst.p,inst.w,inst.M,inst.n
+        b,_b = inst.b,sol._b
+        N = np.arange(n)
+        best_delta,best_j = -float('inf'),-1
+
+        for j in N:
+            delta = self.swap_bit(sol,j) 
+            if (self.tabu_list[j] < tsiter) or (self.tabu_list[j] >= tsiter and sol.obj > best_sol.obj):
+               if best_delta < delta:
+                  best_delta,best_j = delta,j
+                  
+            self.swap_bit(sol,j) 
+        return best_delta,best_j
+    
+    def tabu_search_first(self,sol,best_sol,tsiter):
+        inst = sol.inst
+        N = np.arange(inst.n)
+        
+        np.random.shuffle(N)
+        ls = CLocalSearch()
+        
+        for j in N:
+            delta = ls.swap_bit(sol, j)
+            if(tsiter >= self.tabu_list[j]) or (tsiter < self.tabu_list[j] and sol.obj > best_sol.obj):
+                if delta > 0:
+                    return delta,j
+            ls.swap_bit(sol, j)
+        return 0, -1
+        
     def vns(self,sol,max_time,strategy='first'):
         crono = Crono()
         solstar = CSolution(sol.inst)
@@ -383,21 +473,13 @@ class CLocalSearch():
         while crono.get_time() < max_time:
             h = 1
             while h <= 2:
-                if strategy == 'best':
-                    if h == 1:
-                        self.random_swap_one_bit(sol)
-                    elif h == 2:
-                        self.random_swap_two_bits(sol)
-                    else:
-                        break
-                elif strategy == 'first':
-                    if h == 1:
-                        self.swap_one_bit(sol)  # First Improvement para 1 bit
-                    elif h == 2:
-                        self.swap_two_bits(sol)  # First Improvement para 2 bits
-                    else:
-                        break
-                self.vnd(sol)
+                if h == 1:
+                    self.random_swap_one_bit(sol)
+                elif h == 2:
+                    self.random_swap_two_bits(sol)
+                else:
+                    break
+                self.vnd(sol,strategy=strategy)
 
                 if sol.obj > solstar.obj:
                    solstar.copy_solution(sol)
@@ -406,6 +488,80 @@ class CLocalSearch():
                    h += 1
         sol.copy_solution(solstar)
 
+    def swap_one_bit_best_improvement(self,sol):
+        inst = sol.inst
+        p,w,M = inst.p,inst.w,inst.M
+        b,_b = inst.b,sol._b
+        N = np.arange(inst.n)
+
+        best_delta = float('inf')
+        best_j = -1
+
+        while best_delta > 0:
+              best_delta = -float('inf')
+
+              for j in N:
+                  oldval,newval = sol.x[j], 0 if sol.x[j] else 1
+                  delta = p[j] * (newval - oldval)\
+                        + M * max(0,_b - b)\
+                        - M * max(0,_b + w[j] * (newval - oldval) - b)
+                  if delta > best_delta:
+                      best_delta = delta
+                      best_j = j
+
+              if best_delta > 0:
+                  oldval,newval = sol.x[best_j], 0 if sol.x[best_j] else 1
+                  sol.x[best_j] = newval 
+                  sol.obj += best_delta
+                  _b += w[best_j] * (newval - oldval)
+                  sol._b = _b
+
+    def swap_two_bits_best_improvement(self,sol):
+        inst = sol.inst
+        p,w,M = inst.p,inst.w,inst.M
+        b,_b = inst.b,sol._b
+        n = inst.n
+        N = np.arange(n)
+
+        best_delta = float('inf')
+        best_j = -1
+
+        while best_delta > 0:
+
+              best_delta = -float('inf')
+
+              h1 = 0
+              while h1 < n - 1:
+                  j1 = N[h1]
+                  oldval1,newval1 = sol.x[j1], 0 if sol.x[j1] else 1
+
+                  h2 = h1 + 1
+                  while h2 < n:
+                      j2 = N[h2]
+                      oldval2,newval2 = sol.x[j2], 0 if sol.x[j2] else 1
+
+                      delta = p[j1] * (newval1 - oldval1)\
+                            + p[j2] * (newval2 - oldval2)\
+                            + M * max(0,_b - b)\
+                            - M * max(0,_b + w[j1] * (newval1 - oldval1) + w[j2] * (newval2 - oldval2) - b)
+
+                      if delta > best_delta:
+                         best_delta = delta
+                         best_j1 = j1
+                         best_j2 = j2
+
+                      h2 += 1
+                  h1 += 1
+
+              if best_delta > 0:
+                  oldval1,newval1 = sol.x[best_j1], 0 if sol.x[best_j1] else 1
+                  oldval2,newval2 = sol.x[best_j2], 0 if sol.x[best_j2] else 1
+                  sol.x[best_j1] = newval1 
+                  sol.x[best_j2] = newval2 
+                  sol.obj += best_delta
+                  _b += w[best_j1] * (newval1 - oldval1)\
+                      + w[best_j2] * (newval2 - oldval2)
+                  sol._b = _b
 
 class CConstructor():
     def __init__(self):
@@ -573,7 +729,8 @@ class Crono():
     def reset(self):
         self.start_time = pc()
 
-# Criação de funções para 
+# Criação de funções para rodar cada um dos métodos, a lógica é rodar 30 iterações de cada método para diferentes seeds e após isso, salvar esse resultado em um dataframe, que será salvo em um arquivo .csv
+
 
 if __name__ == '__main__':
     main()

@@ -18,29 +18,13 @@ def main():
     constr = CConstructor()
     
     # random
-    print('random solution 1')
     constr.random_solution(sol)
     sol.print()
 
     ls = CLocalSearch()
     #ls.sa(sol,0.95)
-    print('sa 1')
-    best_sol = CSolution(inst)
-    for i in range(30):  
-        ls.sa(sol,0.95,10)
-        if sol.obj > best_sol.obj:
-              best_sol.copy(sol)
-    best_sol.print()
-    
-    #print('random solution 2')
-    #constr.random_solution2(sol)
-    #sol.print()
-
-    #print('sa 2')
-    
-    #for i in range(30):  
-    #    ls.sa(sol,0.95,10)
-    #sol.print()
+    ls.sa(sol,0.95,10)
+    sol.print()
 
     mod = CModel(inst)
     mod.run()
@@ -311,29 +295,26 @@ class CLocalSearch():
         #print(f'obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
         while temperature > final_temperature:
             h = 0
-            
             while h < SAmax:
                 h += 1
                 j = np.random.randint(n)
-                delta = self.swap_bit(sol, j)
-                np.random.shuffle(N)
-            
+                delta = self.swap_bit(sol,j) 
                 if delta > 0:
-                    # improving solution
-                    # print(f'improving solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
-                    # updating to the first solution
-                    best_sol.copy(sol)
-                    break
+                   #improving solution
+                   #print(f'improving solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
+                   #improving best solutio
+                   if sol.obj > best_sol.obj:
+                       best_sol.copy(sol)
                 else:
-                    rnd = np.random.uniform(0, 1)
-                if rnd < exp(delta / temperature):
-                    # print(f'worsening solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
-                    pass
-                else:
-                    self.swap_bit(sol, j)
+                   rnd = np.random.uniform(0,1)
+                   if rnd < exp(delta/temperature):
+                      #print(f'worsening solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
+                      pass
+                   else:
+                      self.swap_bit(sol,j)
             # diminish temperature
             temperature *= alpha
-            # print(f'current temperature:   {temperature:10.2f}')
+            #print(f'current temperature:   {temperature:10.2f}')
             n_temp_changes += 1
         print(f'final temperature               :{temperature:18.2f}')
         print(f'max number of checked solutions :{n_temp_changes*SAmax:18.0f}') 
