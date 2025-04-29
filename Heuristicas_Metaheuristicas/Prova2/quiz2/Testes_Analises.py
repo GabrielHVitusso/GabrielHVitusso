@@ -1,5 +1,5 @@
 # Prova 2 - Heurísticas e Metaheurísticas - Gabriel Hesse Vitusso
-# Esse arquivo é a junção das Meta e heurísticas contidas no quiz2.zip, o objetivo dele é organizar o código de forma que ele seja entregue no formato para o relatório, e contenha as analises requesitadas.
+# Esse arquivo é a inserção de resultados de Relatorio_prova.py para a definição e calculo de Friedman e de Gráficos de convergência
 
 import os
 import sys
@@ -10,157 +10,191 @@ from math import exp,log
 from mip import Model, xsum,  maximize, CBC, OptimizationStatus, BINARY
 from time import perf_counter as pc
 import pandas as pd
-
+from scipy.stats import friedmanchisquare
+from itertools import combinations
+from scipy.stats import wilcoxon
+import matplotlib.pyplot as plt
+import perfprof
 
 def main():
-    tabela = pd.DataFrame(columns=['Instance', 'Seed', 'Multistart', 'ILS', 'GRASP', 'Tabu Search', 'SA', 'VNS'])
-    for i in range(0, 11):  # Iterate from 0 to 10
-        instance_file = f"./instances/s{i:03d}.kp"  # Format the instance file name
-        inst = CInstance(instance_file)
+    # Import the results.csv file
+    results_path = os.path.join(os.path.dirname(__file__), 'results.csv')
+    assert os.path.isfile(results_path), "results.csv file not found"
+    
+    # Load the CSV file into a pandas DataFrame
+    df = pd.read_csv(results_path)
+    #print(df.head())
+    
+    # Filter columns that do not reference gaps, Seed, or instance
+    non_gap_columns = [col for col in df.columns if 'gap' not in col.lower() and 'seed' not in col.lower() and 'instance' not in col.lower()]
+    #print("Filtered columns:", non_gap_columns)
+    #print("Original columns:", df.columns)
+    filtered_df = df[non_gap_columns]
+    #print("Filtered DataFrame:\n", filtered_df)
+    # Perform the Friedman test
+    
+    # Ensure the data is in the correct format for the test
+    data = [filtered_df[col].values for col in filtered_df.columns]
+    stat, p_value = friedmanchisquare(*[filtered_df[col] for col in filtered_df.columns])
+    
+    
+    
+    # Print the results with increased decimal precision
+    print(f"Friedman test statistic: {stat:.10f}")
+    print("P-value: {:.3e}".format(p_value))
+    
+    # Perform Wilcoxon signed-rank test for all pairs of columns
+    column_pairs = list(combinations(filtered_df.columns, 2))
+    for col1, col2 in column_pairs:
+        stat, p_value = wilcoxon(filtered_df[col1], filtered_df[col2])
+        print(f"Wilcoxon test between {col1} and {col2}:")
+        print(f"Statistic: {stat:.5e}, P-value: {p_value:.3e}")
+    
+    # Foi apontado que a seed 2022056242+100 na instancia sk003.kp apresenta gaps em todas as heuristicas, assim, ela foi selecionada para o gráfico de convergência
+    matricula = 2022056242
+    seed = 100
+    np.random.seed(matricula+seed)
+    instance_file = f"./instances/s003.kp"
+    inst = CInstance(instance_file)
+    sol = CSolution(inst)
+    constr = CConstructor()
+    mod = CModel(inst)
+    mod.run()
+    sol_otima = mod.model.objective_value
+    
+    # multistart
+    sol_multistart = sol
+    constr.random_solution(sol_multistart)
+    ls_multistart = CLocalSearch()
+    lista_multistart = []
+    ls_multistart.multistart(sol_multistart, lista_multistart)
+    print(lista_multistart[-1])
+    
+
+    # grasp
+    sol_grasp = sol
+    constr.random_solution(sol_grasp)
+    ls_grasp = CLocalSearch()
+    lista_grasp = []
+    ls_grasp.grasp(sol_grasp, alpha=0.30, graspmax=50, lista_Fos=lista_grasp)    
+    print(lista_grasp[-1])
+    
+    # ils
+    sol_ils = sol
+    constr.random_solution(sol_ils)
+    ls_ils = CLocalSearch()
+    lista_ils = []
+    ls_ils.ils(sol_ils, max_time=3, max_iterations=1000, max_perturbation=5, strategy='first', lista_Fos=lista_ils)
+    print(lista_ils[-1])
+    
+    # sa
+    sol_sa = sol
+    constr.random_solution(sol_sa)
+    ls_sa = CLocalSearch()
+    lista_sa = []
+    ls_sa.sa(sol_sa, alpha=0.97, k=2, lista_Fos=lista_sa)
+    print(lista_sa[-1])
+    
+    # tabu search
+    sol_tabu = sol
+    constr.random_solution(sol_tabu)
+    ls_tabu = CLocalSearch()
+    lista_tabu = []
+    ls_tabu.tabu_search(sol_tabu, tsmax=500000, max_time=3, tssz=4, lista_Fos=lista_tabu)
+    print(lista_tabu[-1])
+    
+    # vns
+    sol_vns = sol
+    constr.random_solution(sol_vns)
+    ls_vns = CLocalSearch()
+    lista_vns = []
+    ls_vns.vns(sol_vns, max_time=3, strategy='first', lista_Fos=lista_vns)
+    print(lista_vns[-1])
+
+
+
+    # Plotting the convergence graph
+    plt.figure(figsize=(10, 6))
+    
+    # Function to extend the line horizontally after the last recorded value
+    def extend_line(x_values, y_values, last_x):
+        if x_values:
+            plt.plot(x_values + [last_x], y_values + [y_values[-1]], '-')
         
-        sol = CSolution(inst)
-        constr = CConstructor()
+    # Plotting each algorithm's convergence
+    x_multistart = [i[1] for i in lista_multistart]
+    y_multistart = [i[0] for i in lista_multistart]
+    extend_line(x_multistart, y_multistart, 500)  # Extend to x=500
+    plt.plot(x_multistart, y_multistart, label='Multistart')
     
-        mod = CModel(inst)
-        mod.run()
-        otimo = mod.model.objective_value
+    x_grasp = [i[1] for i in lista_grasp]
+    y_grasp = [i[0] for i in lista_grasp]
+    extend_line(x_grasp, y_grasp, 500)  # Extend to x=500
+    plt.plot(x_grasp, y_grasp, label='Grasp')
     
-        # Initialize a DataFrame to store results
-        results = pd.DataFrame(columns=['Seed', 'Multistart', 'ILS', 'GRASP', 'Tabu Search', 'SA', 'VNS'])
-
-        it = 1
-        matricula = 2022056242
-        # Loop through seeds from 100 to 3000, iterating by 100
-        for seed in range(100, 3001, 100):
-            np.random.seed(matricula+seed)
-            constr.random_solution(sol) 
-            print(it)
-            # Initialize local search object
-            ls = CLocalSearch()
-
-            # Run each algorithm and store the results
-            #print("multistart")
-            crono = Crono()
-            crono.start()
-            ls.multistart(sol)
-            multistart_time = crono.get_time()
-            multistart_obj = sol.obj
-            if it == 1 or multistart_obj > results['Multistart'].max():
-                best_multistart_obj = multistart_obj
-                best_multistart_time = multistart_time
-                best_multistart_seed = seed
-
-            #print("ils")
-            constr.random_solution(sol) 
-            crono.start()
-            ls.ils(sol,0.5,5,5,strategy='first')
-            ils_time = crono.get_time()
-            ils_obj = sol.obj
-            if it == 1 or ils_obj > results['ILS'].max():
-                best_ils_obj = ils_obj
-                best_ils_time = ils_time
-                best_ils_seed = seed
-
-            #print("grasp")
-            constr.random_solution(sol) 
-            crono.start()
-            ls.grasp(sol, alpha=0.1, graspmax=10)
-            grasp_time = crono.get_time()
-            grasp_obj = sol.obj
-            if it == 1 or grasp_obj > results['GRASP'].max():
-                best_grasp_obj = grasp_obj
-                best_grasp_time = grasp_time
-                best_grasp_seed = seed
-
-            #print("tabu search")
-            constr.random_solution(sol) 
-            crono.start()
-            ls.tabu_search(sol, tsmax=100000000, max_time=1, tssz= 40)
-            tabu_time = crono.get_time()
-            tabu_obj = sol.obj
-            if it == 1 or tabu_obj > results['Tabu Search'].max():
-                best_tabu_obj = tabu_obj
-                best_tabu_time = tabu_time
-                best_tabu_seed = seed
-
-            #print("sa")
-            constr.random_solution(sol) 
-            crono.start()
-            ls.sa(sol,0.95,10)
-            sa_time = crono.get_time()
-            sa_obj = sol.obj
-            if it == 1 or sa_obj > results['SA'].max():
-                best_sa_obj = sa_obj
-                best_sa_time = sa_time
-                best_sa_seed = seed
-
-            #print("vns")
-            constr.random_solution(sol) 
-            crono.start()
-            ls.vns(sol, max_time=1, strategy='first')
-            vns_time = crono.get_time()
-            vns_obj = sol.obj
-            if it == 1 or vns_obj > results['VNS'].max():
-                best_vns_obj = vns_obj
-                best_vns_time = vns_time
-                best_vns_seed = seed
-
-            # Calculate gaps
-            gap_multistar = ((otimo - best_multistart_obj) / otimo) * 100
-            gap_ils = ((otimo - best_ils_obj) / otimo) * 100
-            gap_grasp = ((otimo - best_grasp_obj) / otimo) * 100
-            gap_tabu = ((otimo - best_tabu_obj) / otimo) * 100
-            gap_sa = ((otimo - best_sa_obj) / otimo) * 100
-            gap_vns = ((otimo - best_vns_obj) / otimo) * 100
-
-            # Append the results to the DataFrame
-            results = pd.concat([results, pd.DataFrame([{
-            'Instance': i,
-            'Seed': seed,
-            'Multistart': multistart_obj,
-            'gap_multistar': gap_multistar,
-            'ILS': ils_obj,
-            'gap_ils': gap_ils,
-            'GRASP': grasp_obj,
-            'gap_grasp': gap_grasp,
-            'Tabu Search': tabu_obj,
-            'gap_tabu': gap_tabu,
-            'SA': sa_obj,
-            'gap_sa': gap_sa,
-            'VNS': vns_obj,
-            'gap_vns': gap_vns
-            }])], ignore_index=True)
-            it += 1
-            # Save the best results for each algorithm in a separate table
-        best_results = pd.DataFrame([{
-            'Instance': i,
-            'best_multistart_seed': best_multistart_seed,
-            'Best Multistart': best_multistart_obj,
-            'Multistart Time': best_multistart_time,
-            'Best ILS Seed': best_ils_seed,
-            'Best ILS': best_ils_obj,
-            'ILS Time': best_ils_time,
-            'Best GRASP Seed': best_grasp_seed,
-            'Best GRASP': best_grasp_obj,
-            'GRASP Time': best_grasp_time,
-            'best_tabu_seed': best_tabu_seed,
-            'Best Tabu Search': best_tabu_obj,
-            'Tabu Search Time': best_tabu_time,
-            'Best SA Seed': best_sa_seed,
-            'Best SA': best_sa_obj,
-            'SA Time': best_sa_time,
-            'best_vns_seed': best_vns_seed,
-            'Best VNS': best_vns_obj,
-            'VNS Time': best_vns_time
-        }])
-
-        # Append the best results to a separate CSV file
-        best_results.to_csv('best_results.csv', mode='a', header=not os.path.exists('best_results.csv'), index=False)
-        tabela = pd.concat([tabela, results], ignore_index=True)
-        
-        # Save the results to a CSV file
-        tabela.to_csv('results.csv', index=False)
+    x_ils = [i[1] for i in lista_ils]
+    y_ils = [i[0] for i in lista_ils]
+    extend_line(x_ils, y_ils, 500)  # Extend to x=500
+    plt.plot(x_ils, y_ils, label='ILS')
     
+    x_sa = [i[1] for i in lista_sa]
+    y_sa = [i[0] for i in lista_sa]
+    extend_line(x_sa, y_sa, 500)  # Extend to x=500
+    plt.plot(x_sa, y_sa, label='SA')
+    
+    x_tabu = [i[1] for i in lista_tabu]
+    y_tabu = [i[0] for i in lista_tabu]
+    extend_line(x_tabu, y_tabu, 500)  # Extend to x=500
+    plt.plot(x_tabu, y_tabu, label='Tabu Search')
+    
+    x_vns = [i[1] for i in lista_vns]
+    y_vns = [i[0] for i in lista_vns]
+    extend_line(x_vns, y_vns, 500)  # Extend to x=500
+    plt.plot(x_vns, y_vns, label='VNS')
+    
+    # Add a horizontal line for the optimal solution value
+    plt.axhline(y=sol_otima, color='r', linestyle='--', label='Solução Ótima')
+    
+    plt.xlabel('Iteration')
+    plt.ylabel('Objective Value')
+    plt.title('Convergence Graph')
+    plt.legend()
+    plt.grid(True)
+
+    # Set y-axis limits to zoom in on the relevant range of objective values
+    min_y = min(min([i[0] for i in lista_multistart]), min([i[0] for i in lista_grasp]), min([i[0] for i in lista_ils]), min([i[0] for i in lista_sa]), min([i[0] for i in lista_tabu]), min([i[0] for i in lista_vns]))
+    max_y = max(max([i[0] for i in lista_multistart]), max([i[0] for i in lista_grasp]), max([i[0] for i in lista_ils]), max([i[0] for i in lista_sa]), max([i[0] for i in lista_tabu]), max([i[0] for i in lista_vns]))
+    plt.ylim(min_y * 0.9, max_y * 1.1)  # Adjust the 0.9 and 1.1 factors as needed to zoom
+
+    # Save the plot to a file
+    plot_path = os.path.join(os.path.dirname(__file__), 'convergence_graph.png')
+    plt.savefig(plot_path)
+    
+    plt.show()
+
+
+    # Grafico de performance
+    # Prepare the data for the performance profile
+    data = {
+        'Multistart': [i[0] for i in lista_multistart],
+        'Grasp': [i[0] for i in lista_grasp],
+        'ILS': [i[0] for i in lista_ils],
+        'SA': [i[0] for i in lista_sa],
+        'Tabu Search': [i[0] for i in lista_tabu],
+        'VNS': [i[0] for i in lista_vns]
+    }
+
+    palette = ['-r', ':b', '--c', '-.g', '-y', '-m']
+    # Generate the performance profile plot
+    perfprof.perfprof(data,palette)
+
+    # Save the plot to a file
+    perf_plot_path = os.path.join(os.path.dirname(__file__), 'performance_profile.png')
+    plt.savefig(perf_plot_path)
+
+    plt.show()
+
+# Resgate de funções de Relatorio_prova.py para o recalcular de soluções usando seeds selecionadas
 class CModel():
     def __init__(self,inst):
         self.inst = inst
@@ -201,12 +235,12 @@ class CModel():
                       newln = 1
                       print()
            print('\n\n')
-# Modificado para somente incluir o necessario para o first improvement dos métodos requisitados
+
 class CLocalSearch():
     def __init__(self):
         pass
  
-    def multistart(self, sol):
+    def multistart(self, sol, lista_Fos = []):
         inst = sol.inst
         p, w, M, n = inst.p, inst.w, inst.M, inst.n
         b, _b = inst.b, sol._b
@@ -215,27 +249,41 @@ class CLocalSearch():
         best_sol.copy(sol)
         constr = CConstructor()
         ls = CLocalSearch()
-        for i in range(30):
+        
+        iter = 0
+        
+        for i in range(100):
+            iter += 1
             constr.random_solution2(sol)
             self.vnd(sol, strategy='first')  # Use 'first' improvement strategy
-            #print(sol.obj)
-            if sol.obj > best_sol.obj:
+            #print(sol.get_obj_val())
+            if sol.get_obj_val() > best_sol.get_obj_val():
                 best_sol.copy(sol)
+                lista_Fos.append([sol.get_obj_val(),iter])
+            #print(lista_Fos)
         # best_sol.print()
+        
     
-    def grasp(self, sol, alpha=.10, graspmax=3):
+    def grasp(self, sol, alpha=.10, graspmax=3, lista_Fos = []):
         best_sol = CSolution(sol.inst)
         best_sol.copy(sol)
         constr = CConstructor()
         ls = CLocalSearch()
         h = 0
+        iter = 0   
         while h < graspmax:
             h += 1
+            iter += 1
             constr.partial_greedy(sol,alpha)
             #ls.swap_one_bit(sol)
-            ls.vnd(sol)#swap_one_bit(sol)
-            if sol.obj > best_sol.obj:
+            ls.vnd(sol, strategy='first')#swap_one_bit(sol)
+            #print(sol.get_obj_val())
+            if sol.get_obj_val() > best_sol.get_obj_val():
                 best_sol.copy(sol)
+                #print(best_sol.get_obj_val())
+                lista_Fos.append([sol.get_obj_val(),iter])
+                
+                
         #best_sol.print()
     
     def vnd(self,sol,strategy='best'):
@@ -340,10 +388,12 @@ class CLocalSearch():
                 max_time,\
                 max_iterations,\
                 max_perturbation = 5,
-                strategy='best'):
+                strategy='best',
+                lista_Fos = []):
         crono = Crono()
         solstar = CSolution(sol.inst)
         solstar.copy_solution(sol)
+        iter = 0
 
         h,gh = 0,0
         self.vnd(sol, strategy=strategy)
@@ -362,12 +412,14 @@ class CLocalSearch():
  sol {sol.obj:12.2f}\
  {crono.get_time():10.2f}s')
                  '''
+                 iter += 1
                  self.perturbation(sol,pert_level)
                  self.vnd(sol,strategy=strategy)
                  #self.rvnd(sol)
 
-                 if sol.obj > solstar.obj:
+                 if sol.get_obj_val() > solstar.get_obj_val():
                     solstar.copy_solution(sol)
+                    lista_Fos.append([solstar.get_obj_val(),iter])
                     h = 1
                     k = 1
                     pert_level = 1
@@ -417,11 +469,12 @@ class CLocalSearch():
             + w[idx2] * (newval2 - oldval2)
         sol._b = _b
 
-    def sa(self,sol,alpha=0.97,k = 2):
+    def sa(self,sol,alpha=0.97,k = 2, lista_Fos = []):
         inst = sol.inst
         p,w,M,n = inst.p,inst.w,inst.M,inst.n
         b,_b = inst.b,sol._b
         N = np.arange(n)
+        iter = 0
         
         # sa settings
         SAmax = k * n
@@ -436,6 +489,7 @@ class CLocalSearch():
         #print(f'obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
         while temperature > final_temperature:
             h = 0
+            iter += 1
             while h < SAmax:
                 h += 1
                 j = np.random.randint(n)
@@ -444,8 +498,9 @@ class CLocalSearch():
                    #improving solution
                    #print(f'improving solution obj : {sol.obj:10.2f}  b : {sol._b:10.2f}')
                    #improving best solutio
-                   if sol.obj > best_sol.obj:
+                   if sol.get_obj_val() > best_sol.get_obj_val():
                        best_sol.copy(sol)
+                       lista_Fos.append([sol.get_obj_val(),iter])
                 else:
                    rnd = np.random.uniform(0,1)
                    if rnd < exp(delta/temperature):
@@ -491,7 +546,7 @@ class CLocalSearch():
         #print(f'initial temperature:   {temperature:10.2f}')
         return temperature
 
-    def tabu_search(self,sol,tsmax=500000,max_time=3, tssz=4):
+    def tabu_search(self,sol,tsmax=500000,max_time=3, tssz=4, lista_Fos = []):
         inst = sol.inst
         self.tabu_list = np.zeros(inst.n)
         
@@ -501,18 +556,20 @@ class CLocalSearch():
                      
         timer = Crono()
         
+        iter = 0
         tsiter = 0
         while tsiter < tsmax and timer.get_time() < max_time:
             tsiter += 1
             delta,j = self.tabu_search_first(sol,best_sol,tsiter)
-          
+            iter += 1
             if j == -1:
                 continue
         
             self.tabu_list[j] = tsiter + tssz
         
-            if sol.obj > best_sol.obj:
+            if sol.get_obj_val() > best_sol.get_obj_val():
                 best_sol.copy(sol)
+                lista_Fos.append([sol.get_obj_val(),iter])
         
         sol.copy_solution(best_sol)
 
@@ -547,10 +604,12 @@ class CLocalSearch():
             ls.swap_bit(sol, j)
         return 0, -1
         
-    def vns(self,sol,max_time,strategy='first'):
+    def vns(self,sol,max_time,strategy='first', lista_Fos = []):
         crono = Crono()
         solstar = CSolution(sol.inst)
         solstar.copy_solution(sol)
+        
+        ite = 0
         while crono.get_time() < max_time:
             h = 1
             while h <= 2:
@@ -562,12 +621,18 @@ class CLocalSearch():
                     break
                 self.vnd(sol,strategy=strategy)
 
-                if sol.obj > solstar.obj:
+                if sol.get_obj_val() > solstar.get_obj_val():
                    solstar.copy_solution(sol)
+                   lista_Fos.append([solstar.get_obj_val(), ite])
                    h = 1
                 else:
                    h += 1
+                
+                ite += 1  
         sol.copy_solution(solstar)
+        
+        return ite
+        
 
     def swap_one_bit_best_improvement(self,sol):
         inst = sol.inst
@@ -812,4 +877,5 @@ class Crono():
 
 if __name__ == '__main__':
     main()
+
 
