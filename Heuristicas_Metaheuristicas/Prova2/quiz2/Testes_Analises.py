@@ -112,66 +112,47 @@ def main():
     print(lista_vns[-1])
 
 
-
-    # Plotting the convergence graph
+    # Gráfico de convergência
     plt.figure(figsize=(10, 6))
-    
-    # Function to extend the line horizontally after the last recorded value
-    def extend_line(x_values, y_values, last_x):
-        if x_values:
-            plt.plot(x_values + [last_x], y_values + [y_values[-1]], '-')
-        
-    # Plotting each algorithm's convergence
-    x_multistart = [i[1] for i in lista_multistart]
-    y_multistart = [i[0] for i in lista_multistart]
-    extend_line(x_multistart, y_multistart, 500)  # Extend to x=500
-    plt.plot(x_multistart, y_multistart, label='Multistart')
-    
-    x_grasp = [i[1] for i in lista_grasp]
-    y_grasp = [i[0] for i in lista_grasp]
-    extend_line(x_grasp, y_grasp, 500)  # Extend to x=500
-    plt.plot(x_grasp, y_grasp, label='Grasp')
-    
-    x_ils = [i[1] for i in lista_ils]
-    y_ils = [i[0] for i in lista_ils]
-    extend_line(x_ils, y_ils, 500)  # Extend to x=500
-    plt.plot(x_ils, y_ils, label='ILS')
-    
-    x_sa = [i[1] for i in lista_sa]
-    y_sa = [i[0] for i in lista_sa]
-    extend_line(x_sa, y_sa, 500)  # Extend to x=500
-    plt.plot(x_sa, y_sa, label='SA')
-    
-    x_tabu = [i[1] for i in lista_tabu]
-    y_tabu = [i[0] for i in lista_tabu]
-    extend_line(x_tabu, y_tabu, 500)  # Extend to x=500
-    plt.plot(x_tabu, y_tabu, label='Tabu Search')
-    
-    x_vns = [i[1] for i in lista_vns]
-    y_vns = [i[0] for i in lista_vns]
-    extend_line(x_vns, y_vns, 500)  # Extend to x=500
-    plt.plot(x_vns, y_vns, label='VNS')
-    
-    # Add a horizontal line for the optimal solution value
-    plt.axhline(y=sol_otima, color='r', linestyle='--', label='Solução Ótima')
-    
-    plt.xlabel('Iteration')
-    plt.ylabel('Objective Value')
-    plt.title('Convergence Graph')
+
+    # Limit the number of iterations to 500
+    max_iterations = 500
+
+    # Plot each list with logarithmic y-axis, ensuring y-values are not too negative
+    plt.plot([item[1] for item in lista_multistart if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_multistart if item[1] <= max_iterations], 
+             label='Multistart', linestyle='-', marker='o')
+    plt.plot([item[1] for item in lista_grasp if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_grasp if item[1] <= max_iterations], 
+             label='Grasp', linestyle='--', marker='s')
+    plt.plot([item[1] for item in lista_ils if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_ils if item[1] <= max_iterations], 
+             label='ILS', linestyle='-.', marker='^')
+    plt.plot([item[1] for item in lista_sa if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_sa if item[1] <= max_iterations], 
+             label='SA', linestyle=':', marker='d')
+    plt.plot([item[1] for item in lista_tabu if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_tabu if item[1] <= max_iterations], 
+             label='Tabu Search', linestyle='-', marker='x')
+    plt.plot([item[1] for item in lista_vns if item[1] <= max_iterations], 
+             [max(item[0], -5) for item in lista_vns if item[1] <= max_iterations], 
+             label='VNS', linestyle='--', marker='*')
+
+    # Add a horizontal line at y = sol_otima
+    plt.axhline(y=sol_otima, color='black', linestyle='--', label='Solução Ótima')
+
+    # Add labels, legend, and title
+    plt.xlabel('Número de Iterações')
+    plt.ylabel('Logaritmo da Função Objetivo (limitado a -5)')
+    plt.title('Gráfico de Convergência (Limitado a 500 Iterações)')
     plt.legend()
     plt.grid(True)
 
-    # Set y-axis limits to zoom in on the relevant range of objective values
-    min_y = min(min([i[0] for i in lista_multistart]), min([i[0] for i in lista_grasp]), min([i[0] for i in lista_ils]), min([i[0] for i in lista_sa]), min([i[0] for i in lista_tabu]), min([i[0] for i in lista_vns]))
-    max_y = max(max([i[0] for i in lista_multistart]), max([i[0] for i in lista_grasp]), max([i[0] for i in lista_ils]), max([i[0] for i in lista_sa]), max([i[0] for i in lista_tabu]), max([i[0] for i in lista_vns]))
-    plt.ylim(min_y * 0.9, max_y * 1.1)  # Adjust the 0.9 and 1.1 factors as needed to zoom
+    # Save the convergence plot to a file
+    convergence_plot_path = os.path.join(os.path.dirname(__file__), 'convergence_plot.png')
+    plt.savefig(convergence_plot_path)
 
-    # Save the plot to a file
-    plot_path = os.path.join(os.path.dirname(__file__), 'convergence_graph.png')
-    plt.savefig(plot_path)
-    
     plt.show()
-
 
     # Grafico de performance
     # Prepare the data for the performance profile
